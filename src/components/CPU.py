@@ -130,7 +130,6 @@ class CPU:
         
         
          Nu am implementat 
-         - sectiunea .data??? wtf
          -fsw
          -srl
     '''
