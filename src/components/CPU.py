@@ -1,3 +1,4 @@
+import sys
 from src.components.RAM import RAM
 
 RAM = RAM.getInstance()
@@ -63,6 +64,7 @@ class CPU:
     }
 
     def __init__(self) -> None:
+        self.__DEBUG_MODE = '--v' in sys.argv
         super().__init__()
 
     def execute(self):
@@ -92,7 +94,8 @@ class CPU:
             # self.memoryAccess(location)
             # self.writeBack(location, data)
 
-            print(("=" * 10 + "\n") * 4)
+            if self.__DEBUG_MODE:
+                print(("=" * 10 + "\n") * 4)
 
             counter += 1
 
@@ -100,11 +103,12 @@ class CPU:
     # (de exemplu ) sp
     def instructionFetch(self):
         self.decoder['instruction'] = RAM.getInstruction(self.registers['pc'])
-        print(self.registers)
-        print("Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)".format(self.decoder['instruction'],
-                                                                                       hex(self.decoder['instruction']),
-                                                                                       hex(self.registers[
-                                                                                               'pc'] + 0x80000000)))
+        if self.__DEBUG_MODE:
+            print(self.registers)
+            print("Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)".format(self.decoder['instruction'],
+                                                                                           hex(self.decoder['instruction']),
+                                                                                           hex(self.registers[
+                                                                                                   'pc'] + 0x80000000)))
 
     '''
         Instructiuni implementate pana acum:
@@ -126,7 +130,8 @@ class CPU:
     def instructionDecode(self):
         binaryStringInstruction = bin(self.decoder['instruction'])[2:].zfill(0x20)
         opcodeBin = binaryStringInstruction[-7:]
-        print(bin(self.decoder['instruction'])[2:].zfill(0x20))
+        if self.__DEBUG_MODE:
+            print(bin(self.decoder['instruction'])[2:].zfill(0x20))
         opcode = int(opcodeBin, base=2)
         self.decoder['opcode'] = opcode
 
@@ -190,37 +195,50 @@ class CPU:
             self.decoder['imm'] = imm
 
         elif opcode == 0x73:
-            print("END !!")
-            self.decoder['SIGINT'] = True
+            # Sfarsitul programului, daca a0 e 1 atunci suntem pe pass,
+            # altfel pe fail
+            if self.registers['a0'] == 1:
+                print("pass")
+            else:
+                print("fail")
 
-        print("Opcode is {} (decimal) / {} (binary)".format(opcode, bin(opcode)[2:]))
+            self.decoder['SIGINT'] = True
+        if self.__DEBUG_MODE:
+            print("Opcode is {} (decimal) / {} (binary)".format(opcode, bin(opcode)[2:]))
 
     def instructionExecute(self):
         # opcode == 111 (jal)
+        if self.decoder['rd'] == 0:
+            x = 25
         if self.decoder['opcode'] == 0x6F:
             self.registers['pc'] += self.decoder['imm']
         # opcode == 19
         elif self.decoder['opcode'] == 0x13:
             # addi
             if self.decoder['funct3'] == 0:
+
                 rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
                 rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
 
-                # Simulare overflow
-                self.registers[rdKey] = (self.registers[rs1Key] + self.decoder['imm']) & 0xFFFFFFFF
-                # Simulare complement fata de 2, deci inversam semnul lui reg[31]*2^11
+                if rdKey != 'zero':
+                    # Simulare overflow
+                    self.registers[rdKey] = (self.registers[rs1Key] + self.decoder['imm']) & 0xFFFFFFFF
+                    # Simulare complement fata de 2, deci inversam semnul lui reg[31]*2^11
 
-                self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
+                    self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
 
-                print("registers[{}] = {} ({} + {}) ADDI".format(rdKey, self.registers[rs1Key] + self.decoder['imm'],
+                if self.__DEBUG_MODE:
+                    print("registers[{}] = {} ({} + {}) ADDI".format(rdKey, self.registers[rs1Key] + self.decoder['imm'],
                                                                  self.registers[rs1Key], self.decoder['imm']))
 
             # ori
             elif self.decoder['funct3'] == 6:
                 rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
                 rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
-                self.registers[rdKey] = self.registers[rs1Key] | self.decoder['imm']
-                print("registers[{}] = {} ({} | {}) ORI".format(rdKey, self.registers[rs1Key] | self.decoder['imm'],
+                if rdKey != 'zero':
+                    self.registers[rdKey] = self.registers[rs1Key] | self.decoder['imm']
+                if self.__DEBUG_MODE:
+                    print("registers[{}] = {} ({} | {}) ORI".format(rdKey, self.registers[rs1Key] | self.decoder['imm'],
                                                                 self.registers[rs1Key], self.decoder['imm']))
             # slli
             elif self.decoder['func3'] == 0:
@@ -234,7 +252,8 @@ class CPU:
                 rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
                 rsKey = self.__getRegisterKeyByIdx(self.decoder['rs1'])
 
-                self.registers[rdKey] = ((self.registers[rsKey] << shamt_i) & 0xFFFFFFFF)
+                if rdKey != 'zero':
+                    self.registers[rdKey] = ((self.registers[rsKey] << shamt_i) & 0xFFFFFFFF)
 
             self.registers['pc'] += 4
         elif self.decoder['opcode'] == 0x3:
@@ -252,7 +271,8 @@ class CPU:
                 # TODO Trebuie sa avem grija cand punem valori in memorie (sa nu fie negative)
                 # pt ca le luam deja pozitive
                 memAddrValue = (memAddrValue & 0x7fffffff) - (memAddrValue & 0x80000000)
-                self.registers[rdKey] = memAddrValue
+                if rdKey != 'zero':
+                    self.registers[rdKey] = memAddrValue
 
         elif self.decoder['opcode'] == 0x63:
             # beq
@@ -263,6 +283,8 @@ class CPU:
                 offset = 2 * self.decoder['imm']
                 if self.registers[rs1Key] == self.registers[rs2Key]:
                     self.registers['pc'] += offset
+                    if self.__DEBUG_MODE:
+                        print("BEQ")
                 # daca nu e jump, doar trece la urm instr
                 else:
                     self.registers['pc'] += 4
@@ -275,6 +297,8 @@ class CPU:
                 offset = 2 * self.decoder['imm']
                 if self.registers[rs1Key] != self.registers[rs2Key]:
                     self.registers['pc'] += offset
+                    if self.__DEBUG_MODE:
+                        print("BNE")
                 # daca nu e jump, doar trece la urm instr
                 else:
                     self.registers['pc'] += 4
@@ -282,13 +306,15 @@ class CPU:
         elif self.decoder['opcode'] == 0x37:
             rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
             # Punem in cei mai semnificativi 20 de biti ai lui id imm-ul
-            self.registers[rdKey] = self.decoder['imm'] << 0xC
+            if rdKey != 'zero':
+                self.registers[rdKey] = self.decoder['imm'] << 0xC
 
-            # Simulare complement fata de 2, deci inversam semnul lui reg[31]*2^11
+                # Simulare complement fata de 2, deci inversam semnul lui reg[31]*2^11
 
-            self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
+                self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
 
-            print("registers[{}] = {} ({} << 12) LUI".format(rdKey, self.decoder['imm'] << 0xC,
+            if self.__DEBUG_MODE:
+                print("registers[{}] = {} ({} << 12) LUI".format(rdKey, self.decoder['imm'] << 0xC,
                                                              self.decoder['imm']))
 
             self.registers['pc'] += 4
@@ -297,8 +323,10 @@ class CPU:
             rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
             imm_u = self.decoder['imm'] << 0xC
             imm_u += self.registers['pc']
-            self.registers[rdKey] = imm_u
-            print("registers[{}] = {} ({} + {}(program_counter)) AUIPC".format(rdKey, imm_u,
+            if rdKey != 'zero':
+                self.registers[rdKey] = imm_u
+            if self.__DEBUG_MODE:
+                print("registers[{}] = {} ({} + {}(program_counter)) AUIPC".format(rdKey, imm_u,
                                                                                (self.decoder['imm'] << 0xC),
                                                                                self.registers['pc']))
 
