@@ -20,50 +20,29 @@ class StorageUnit:
             StorageUnit.__INSTANCE = StorageUnit()
         return StorageUnit.__INSTANCE
 
-    '''
-    Obtinem toate "executabilele" (fisierele .mc) de pe "disc" (adica din folderul assets/mc) si le parsam 
-    in asa fel incat sa contina doar instructiunile ce trebuie executate. 
-    Aceste instructiuni vor fi incarcate in RAM si procesorul le va executa
-    '''
+    def runExecutables(self):
 
-    def getExecutables(self):
-        """
-        Pentru inceput, obtinem instructiunile doar pentru primul executabil
-        """
+        mc_files = ['./assets/mc/rv32ui-v-addi.mc',
+                    './assets/mc/rv32ui-v-beq.mc',
+                    './assets/mc/rv32ui-v-lw.mc',
+                    './assets/mc/rv32ui-v-srl.mc',
+                    './assets/mc/rv32ui-v-sw.mc',
+                    './assets/mc/rv32ui-v-xor.mc',
+                    './assets/mc/rv32um-v-rem.mc'
+                    ]
 
-        # TODO Inlocuieste cu path-urile relative la root-ul proiectului
-        mc_file = '/home/liviu/Desktop/asc/ASC_0x01_Project/assets/mc/rv32um-v-rem.mc'
+        for mc_file in mc_files:
+            instructions, data = self.__parseMcFile(mc_file)
 
-        instructions, data = self.__parseMcFile(mc_file)
-        '''
-            Acum incarcam in RAM instructiunile din executabil
-            Pentru ca "RAM-ul" nostru e virtualizat si nu are de a face cu vreun sistem hardware real,
-            adresa primei instructiuni din mc este irelevanta - putem incepe de la 0 si seteam un offset
-        '''
+            RAM.loadInstructions(instructions)
+            RAM.loadData(data)
 
-        RAM.loadInstructions(instructions)
-        RAM.loadData(data)
-        CPU.execute()
+            print("Se ruleaza {}".format(mc_file.split('/')[-1]))
+            CPU.execute()
 
+            CPU.reset()
+            RAM.reset()
 
-        '''
-        Dupa ce incarc instructiunile in RAM, CPU-ul le va executa
-        '''
-
-    def getContents(self) -> str:
-        return "Storage Unit Contents"
-
-    '''
-        Returnam instructiunile si datele  sub forma de dictionare, cheia fiind adresa de memorie 
-        si valoarea fiind instructiunea / datele in sine
-        
-        Pentru ca .mc-ul este in sine un dump, mai contine ceva metadata de care trebuie sa scapam 
-        Parsam fisierul si pastram doar liniile care sunt de forma 
-        <numar_hexa_pe_32_de_biti>:<spatii><<numar_hexa_pe_32_de_biti>
-        Primul numar hexa reprezinta adresa din memorie, al doilea numar hexa reprezinta instructiunea
-        ce trebuie executata de catre procesor / datele ce trebuie incarcate pe stiva
-        
-    '''
 
     def __parseMcFile(self, mc_file):
         current_section = ".text"

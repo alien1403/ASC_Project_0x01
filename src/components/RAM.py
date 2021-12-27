@@ -21,7 +21,7 @@ class RAM:
         maxAddr = max(instructions.keys())
         minAddr = min(instructions.keys())
         stack_size = self.__hexStrToInt(maxAddr) - self.__hexStrToInt(minAddr)
-        self.__stack = [0 for _ in range(stack_size + 1)]
+        self.__stack = [0 for _ in range(stack_size + 16)]
         first_instr = True
         for address, instruction in instructions.items():
             if first_instr:
@@ -47,6 +47,9 @@ class RAM:
 
     def getInstruction(self, location):
         return self.__stack[location]
+
+    def reset(self):
+        self.__stack = []
 
     def getData(self, location):
         return self.__stack[location]

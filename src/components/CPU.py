@@ -68,6 +68,53 @@ class CPU:
         self.__DEBUG_MODE = '--v' in sys.argv
         super().__init__()
 
+    def reset(self):
+        self.decoder = {
+            'instruction': 0,
+            'opcode': 0,
+            'imm': 0,
+            'rd': 0,
+            'rs1': 0,
+            'rs2': 0,
+            'SIGINT': False
+        }
+
+        self.registers = {
+            'zero': 0,  # hardwired, x0
+            'ra': 0,  # x1
+            'sp': 0,  # x2
+            'gp': 0,  # x3
+            'tp': 0,  # x4
+            't0': 0,  # x5
+            't1': 0,  # x6
+            't2': 0,  # x7
+            's0': 0,  # x8
+            's1': 0,  # x9
+            'a0': 0,  # x10
+            'a1': 0,  # x11
+            'a2': 0,  # x12
+            'a3': 0,  # x13
+            'a4': 0,  # x14
+            'a5': 0,  # x15
+            'a6': 0,  # x16
+            'a7': 0,  # x17
+            's2': 0,  # x18
+            's3': 0,  # x19
+            's4': 0,  # x20
+            's5': 0,  # x21
+            's6': 0,  # x22
+            's7': 0,  # x23
+            's8': 0,  # x24
+            's9': 0,  # x25
+            's10': 0,  # x26
+            's11': 0,  # x27
+            't3': 0,  # x28
+            't4': 0,  # x29
+            't5': 0,  # x30
+            't6': 0,  # x31
+            'pc': 0  # program counter
+        }
+
     def execute(self):
 
         while True:
