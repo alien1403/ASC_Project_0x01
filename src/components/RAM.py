@@ -10,6 +10,7 @@ class RAM:
 
     def __init__(self) -> None:
         super().__init__()
+        self.__STACK_OFFSET = 0
         # Stack-ul de memorie, inital gol
         self.__stack = []
 
@@ -22,19 +23,29 @@ class RAM:
         stack_size = self.__hexStrToInt(maxAddr) - self.__hexStrToInt(minAddr)
         self.__stack = [0 for _ in range(stack_size + 1)]
         first_instr = True
-        offset = 0
         for address, instruction in instructions.items():
             if first_instr:
-                offset = self.__hexStrToInt(address)
+                self.__STACK_OFFSET = self.__hexStrToInt(address)
             first_instr = False
             current_address = self.__hexStrToInt(address)
             current_instruction = self.__hexStrToInt(instruction)
-            self.__stack[current_address - offset] = current_instruction
+            self.__stack[current_address - self.__STACK_OFFSET] = current_instruction
 
-    # def getStack(self):
-    #     return self.__stack
+    def loadData(self, dataDict):
+        print("Loading data")
+        if len(dataDict) == 0:
+            return []
+        print(dataDict.keys())
+        maxAddr = max(dataDict.keys())
+        maxAddr = self.__hexStrToInt(maxAddr)
+        minAddr = len(self.__stack) + self.__STACK_OFFSET
+        needed_space = (maxAddr - minAddr)
+        self.__stack = self.__stack + [0 for _ in range(needed_space + 1)]
 
-    # print(hex(self.__stack[0x2b84]))
+        for address, data in dataDict.items():
+            current_address = self.__hexStrToInt(address)
+            current_data = self.__hexStrToInt(data)
+            self.__stack[current_address - self.__STACK_OFFSET] = current_data
 
     def getInstruction(self, location):
         return self.__stack[location]

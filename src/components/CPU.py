@@ -64,14 +64,15 @@ class CPU:
     }
 
     def __init__(self) -> None:
-        self.__DEBUG_MODE = '--v' in sys.argv
+        self.__DEBUG_MODE = '--v' in sys.argv or True
         super().__init__()
 
     def execute(self):
         counter = 0
 
         while True:
-            if self.decoder['SIGINT']:
+            #if self.decoder['SIGINT'] or counter > 10000:
+            if self.decoder['SIGINT'] or counter > 10000:
                 break
 
             self.decoder = {
@@ -87,6 +88,7 @@ class CPU:
             self.instructionFetch()
             self.instructionDecode()
             self.instructionExecute()
+            counter += 1
 
             # Componentele MEM si WB ale ciclului vor fi initate de EX in cazul in care este necesar
             # Concret, instructionExecute va apela memoryAccess pt a obtine date din memorie / writeBack
@@ -94,7 +96,7 @@ class CPU:
             # self.memoryAccess(location)
             # self.writeBack(location, data)
 
-            if self.__DEBUG_MODE:
+            if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                 print(("=" * 10 + "\n") * 4)
 
             counter += 1
@@ -103,10 +105,11 @@ class CPU:
     # (de exemplu ) sp
     def instructionFetch(self):
         self.decoder['instruction'] = RAM.getInstruction(self.registers['pc'])
-        if self.__DEBUG_MODE:
+        if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
             print(self.registers)
             print("Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)".format(self.decoder['instruction'],
-                                                                                           hex(self.decoder['instruction']),
+                                                                                           hex(self.decoder[
+                                                                                                   'instruction']),
                                                                                            hex(self.registers[
                                                                                                    'pc'] + 0x80000000)))
 
@@ -125,12 +128,17 @@ class CPU:
         -slli
         -beqz
         
+        
+         Nu am implementat 
+         - sectiunea .data??? wtf
+         -fsw
+         -srl
     '''
 
     def instructionDecode(self):
         binaryStringInstruction = bin(self.decoder['instruction'])[2:].zfill(0x20)
         opcodeBin = binaryStringInstruction[-7:]
-        if self.__DEBUG_MODE:
+        if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
             print(bin(self.decoder['instruction'])[2:].zfill(0x20))
         opcode = int(opcodeBin, base=2)
         self.decoder['opcode'] = opcode
@@ -203,13 +211,11 @@ class CPU:
                 print("fail")
 
             self.decoder['SIGINT'] = True
-        if self.__DEBUG_MODE:
+        if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
             print("Opcode is {} (decimal) / {} (binary)".format(opcode, bin(opcode)[2:]))
 
     def instructionExecute(self):
         # opcode == 111 (jal)
-        if self.decoder['rd'] == 0:
-            x = 25
         if self.decoder['opcode'] == 0x6F:
             self.registers['pc'] += self.decoder['imm']
         # opcode == 19
@@ -227,9 +233,10 @@ class CPU:
 
                     self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
 
-                if self.__DEBUG_MODE:
-                    print("registers[{}] = {} ({} + {}) ADDI".format(rdKey, self.registers[rs1Key] + self.decoder['imm'],
-                                                                 self.registers[rs1Key], self.decoder['imm']))
+                if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
+                    print(
+                        "registers[{}] = {} ({} + {}) ADDI".format(rdKey, self.registers[rs1Key] + self.decoder['imm'],
+                                                                   self.registers[rs1Key], self.decoder['imm']))
 
             # ori
             elif self.decoder['funct3'] == 6:
@@ -237,9 +244,9 @@ class CPU:
                 rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
                 if rdKey != 'zero':
                     self.registers[rdKey] = self.registers[rs1Key] | self.decoder['imm']
-                if self.__DEBUG_MODE:
+                if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                     print("registers[{}] = {} ({} | {}) ORI".format(rdKey, self.registers[rs1Key] | self.decoder['imm'],
-                                                                self.registers[rs1Key], self.decoder['imm']))
+                                                                    self.registers[rs1Key], self.decoder['imm']))
             # slli
             elif self.decoder['func3'] == 0:
                 '''
@@ -273,7 +280,7 @@ class CPU:
                 memAddrValue = (memAddrValue & 0x7fffffff) - (memAddrValue & 0x80000000)
                 if rdKey != 'zero':
                     self.registers[rdKey] = memAddrValue
-
+            self.registers['pc'] += 4
         elif self.decoder['opcode'] == 0x63:
             # beq
             if self.decoder['funct3'] == 0:
@@ -283,7 +290,7 @@ class CPU:
                 offset = 2 * self.decoder['imm']
                 if self.registers[rs1Key] == self.registers[rs2Key]:
                     self.registers['pc'] += offset
-                    if self.__DEBUG_MODE:
+                    if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                         print("BEQ")
                 # daca nu e jump, doar trece la urm instr
                 else:
@@ -297,7 +304,7 @@ class CPU:
                 offset = 2 * self.decoder['imm']
                 if self.registers[rs1Key] != self.registers[rs2Key]:
                     self.registers['pc'] += offset
-                    if self.__DEBUG_MODE:
+                    if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                         print("BNE")
                 # daca nu e jump, doar trece la urm instr
                 else:
@@ -313,9 +320,9 @@ class CPU:
 
                 self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
 
-            if self.__DEBUG_MODE:
+            if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                 print("registers[{}] = {} ({} << 12) LUI".format(rdKey, self.decoder['imm'] << 0xC,
-                                                             self.decoder['imm']))
+                                                                 self.decoder['imm']))
 
             self.registers['pc'] += 4
         # AUIPC => Instructiune U-Type
@@ -325,10 +332,10 @@ class CPU:
             imm_u += self.registers['pc']
             if rdKey != 'zero':
                 self.registers[rdKey] = imm_u
-            if self.__DEBUG_MODE:
+            if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                 print("registers[{}] = {} ({} + {}(program_counter)) AUIPC".format(rdKey, imm_u,
-                                                                               (self.decoder['imm'] << 0xC),
-                                                                               self.registers['pc']))
+                                                                                   (self.decoder['imm'] << 0xC),
+                                                                                   self.registers['pc']))
 
             self.registers['pc'] += 4
 
