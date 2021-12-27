@@ -71,8 +71,7 @@ class CPU:
         counter = 0
 
         while True:
-            #if self.decoder['SIGINT'] or counter > 10000:
-            if self.decoder['SIGINT'] or counter > 10000:
+            if self.decoder['SIGINT']:
                 break
 
             self.decoder = {
@@ -88,7 +87,6 @@ class CPU:
             self.instructionFetch()
             self.instructionDecode()
             self.instructionExecute()
-            counter += 1
 
             # Componentele MEM si WB ale ciclului vor fi initate de EX in cazul in care este necesar
             # Concret, instructionExecute va apela memoryAccess pt a obtine date din memorie / writeBack
@@ -107,11 +105,8 @@ class CPU:
         self.decoder['instruction'] = RAM.getInstruction(self.registers['pc'])
         if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
             print(self.registers)
-            print("Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)".format(self.decoder['instruction'],
-                                                                                           hex(self.decoder[
-                                                                                                   'instruction']),
-                                                                                           hex(self.registers[
-                                                                                                   'pc'] + 0x80000000)))
+            instrDebugF = "Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)"
+            print(instrDebugF.format(self.decoder['instruction'], hex(self.decoder['instruction']), hex(self.registers['pc'] + 0x80000000)))
 
     '''
         Instructiuni implementate pana acum:
@@ -200,6 +195,19 @@ class CPU:
             self.decoder['rs1'] = rs1
             self.decoder['rs2'] = rs2
             self.decoder['imm'] = imm
+        elif opcode == 0x33:
+            # Instructiune R-type
+            funct3 = (self.decoder['instruction'] & 0x7000) >> 0xC
+            rd = (self.decoder['instruction'] & 0xf80) >> 7
+            rs1 = (self.decoder['instruction'] & 0xf8000) >> 0xF
+            # Am luat rs2 ca fiind ultimii 12 biti (ca la imm pt instructiuni I) ca sa nu mai schimb mastile
+            # Cand il folosesc, iau doar ultimii 5 biti
+            rs2 = (self.decoder['instruction'] & 0xfff00000) >> 0x14
+
+            self.decoder['funct3'] = funct3
+            self.decoder['rd'] = rd
+            self.decoder['rs1'] = rs1
+            self.decoder['rs2'] = rs2
 
         elif opcode == 0x73:
             # Sfarsitul programului, daca a0 e 1 atunci suntem pe pass,
@@ -214,6 +222,10 @@ class CPU:
             print("Opcode is {} (decimal) / {} (binary)".format(opcode, bin(opcode)[2:]))
 
     def instructionExecute(self):
+
+        if self.registers['pc'] == 0x29f8:
+            xx = 15
+
         # opcode == 111 (jal)
         if self.decoder['opcode'] == 0x6F:
             self.registers['pc'] += self.decoder['imm']
@@ -247,7 +259,7 @@ class CPU:
                     print("registers[{}] = {} ({} | {}) ORI".format(rdKey, self.registers[rs1Key] | self.decoder['imm'],
                                                                     self.registers[rs1Key], self.decoder['imm']))
             # slli
-            elif self.decoder['func3'] == 0:
+            elif self.decoder['funct3'] == 0:
                 '''
                     In cazul instructiunilor de shift, cei 
                     mai nesemnificativi 5 biti ai imm-ului reprezinta shamt_i
@@ -337,7 +349,38 @@ class CPU:
                                                                                    self.registers['pc']))
 
             self.registers['pc'] += 4
+        # Instructiuni R-Type
+        elif self.decoder['opcode'] == 0x33:
+            if self.decoder['funct3'] == 5:
+                if (self.decoder['rs2'] & 0xFE0) == 0:
+                    # srl
+                    rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
+                    rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
+                    rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'] & 0x1F)
+                    if rdKey != 'zero':
 
+                        shift_amount = self.registers[rs2Key] & 0x1F
+                        if shift_amount == 0:
+                            self.registers[rdKey] = self.registers[rs1Key]
+                        else:
+                            regHexVal = self.registers[rs1Key]
+                            if regHexVal < 0:
+                                regHexVal += (1 << 32)
+                                binRep = bin(regHexVal)[2:].zfill(32)
+                                shifted_binRep = ('0' * shift_amount) + binRep[:-shift_amount]
+                                regHexVal = int(shifted_binRep, base=2)
+                            else:
+                                regHexVal = regHexVal >> shift_amount
+                            self.registers[rdKey] = regHexVal
+
+            # xor
+            elif self.decoder['funct3'] == 4:
+                rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
+                rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
+                rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'] & 0x1F)
+                if rdKey != 'zero':
+                    self.registers[rdKey] = self.registers[rs1Key] ^ (self.registers[rs2Key])
+            self.registers['pc'] += 4
 
         else:
             self.registers['pc'] += 4
