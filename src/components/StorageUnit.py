@@ -32,7 +32,7 @@ class StorageUnit:
         """
 
         # TODO Inlocuieste cu path-urile relative la root-ul proiectului
-        mc_file = '/home/liviu/Desktop/asc/ASC_0x01_Project/assets/mc/rv32ui-v-sw.mc'
+        mc_file = '/home/liviu/Desktop/asc/ASC_0x01_Project/assets/mc/rv32um-v-rem.mc'
 
         instructions, data = self.__parseMcFile(mc_file)
         '''

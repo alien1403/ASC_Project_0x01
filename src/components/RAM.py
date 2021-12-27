@@ -32,10 +32,8 @@ class RAM:
             self.__stack[current_address - self.__STACK_OFFSET] = current_instruction
 
     def loadData(self, dataDict):
-        print("Loading data")
         if len(dataDict) == 0:
             return []
-        print(dataDict.keys())
         maxAddr = max(dataDict.keys())
         maxAddr = self.__hexStrToInt(maxAddr)
         minAddr = len(self.__stack) + self.__STACK_OFFSET

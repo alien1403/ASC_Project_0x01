@@ -1,4 +1,5 @@
 import sys
+import math
 from src.components.RAM import RAM
 
 RAM = RAM.getInstance()
@@ -64,11 +65,10 @@ class CPU:
     }
 
     def __init__(self) -> None:
-        self.__DEBUG_MODE = '--v' in sys.argv or True
+        self.__DEBUG_MODE = '--v' in sys.argv
         super().__init__()
 
     def execute(self):
-        counter = 0
 
         while True:
             if self.decoder['SIGINT']:
@@ -88,6 +88,7 @@ class CPU:
             self.instructionDecode()
             self.instructionExecute()
 
+
             # Componentele MEM si WB ale ciclului vor fi initate de EX in cazul in care este necesar
             # Concret, instructionExecute va apela memoryAccess pt a obtine date din memorie / writeBack
             # pentru a scrie date in memorie - daca este cazul
@@ -97,10 +98,7 @@ class CPU:
             if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                 print(("=" * 10 + "\n") * 4)
 
-            counter += 1
 
-    # TODO foloseste pt instructiunea curenta un registru
-    # (de exemplu ) sp
     def instructionFetch(self):
         self.decoder['instruction'] = RAM.getInstruction(self.registers['pc'])
         if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
@@ -108,26 +106,6 @@ class CPU:
             instrDebugF = "Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)"
             print(instrDebugF.format(self.decoder['instruction'], hex(self.decoder['instruction']), hex(self.registers['pc'] + 0x80000000)))
 
-    '''
-        Instructiuni implementate pana acum:
-
-        - jal 
-        - addi
-        - ori
-        - lui
-        - auipc
-        - lw
-        - bne
-        - beq
-        - nop
-        -slli
-        -beqz
-        
-        
-         Nu am implementat 
-         -fsw
-         -srl
-    '''
 
     def instructionDecode(self):
         binaryStringInstruction = bin(self.decoder['instruction'])[2:].zfill(0x20)
@@ -241,8 +219,6 @@ class CPU:
 
     def instructionExecute(self):
 
-        if self.registers['pc'] == 0x29f8:
-            xx = 15
 
         # opcode == 111 (jal)
         if self.decoder['opcode'] == 0x6F:
@@ -304,7 +280,6 @@ class CPU:
                 # fata de 2, deci trebuie sa inversam semnul lui
                 # memAddrValue[31] * 2^31
 
-                # TODO Trebuie sa avem grija cand punem valori in memorie (sa nu fie negative)
                 # pt ca le luam deja pozitive
                 memAddrValue = (memAddrValue & 0x7fffffff) - (memAddrValue & 0x80000000)
                 if rdKey != 'zero':
@@ -410,6 +385,19 @@ class CPU:
                 rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'] & 0x1F)
                 if rdKey != 'zero':
                     self.registers[rdKey] = self.registers[rs1Key] ^ (self.registers[rs2Key])
+            elif self.decoder['funct3'] == 6:
+                if ((self.decoder['rs2'] & 0xFE0) >> 5) == 1:
+                    #rem
+                    rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
+                    rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
+                    rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'] & 0x1F)
+                    if rdKey != 'zero':
+                        if self.registers[rs2Key] == 0:
+                            self.registers[rdKey] = self.registers[rs1Key]
+                        elif self.registers[rs1Key] * self.registers[rs2Key] > 0:
+                            self.registers[rdKey] = self.registers[rs1Key] % (self.registers[rs2Key])
+                        else:
+                            self.registers[rdKey] = self.registers[rs1Key] - math.ceil(self.registers[rs1Key] / self.registers[rs2Key]) * self.registers[rs2Key]
             self.registers['pc'] += 4
 
         else:
