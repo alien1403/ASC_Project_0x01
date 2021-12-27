@@ -174,6 +174,24 @@ class CPU:
             imm = (self.decoder['instruction'] & 0xfffff000) >> 0xC
             self.decoder['rd'] = rd
             self.decoder['imm'] = imm
+        elif opcode == 0x23:
+            #Instructiuni S-Type (sw)
+            funct3 = (self.decoder['instruction'] & 0x7000) >> 0xC
+            rs1 = (self.decoder['instruction'] & 0xf8000) >> 0xF
+            rs2 = (self.decoder['instruction'] & 0x1f00000) >> 0x14
+            imm_string = binaryStringInstruction[24:19:-1] + binaryStringInstruction[6::-1]
+            imm_string = imm_string[::-1]
+            imm = int(imm_string, base=2)
+            # imm este in complement fata de 2, deci inversam semnul lui imm[11]*2^11
+            imm = (imm & 0x7ff) - (imm & 0x800)
+
+            self.decoder['funct3'] = funct3
+            self.decoder['rs1'] = rs1
+            self.decoder['rs2'] = rs2
+            self.decoder['imm'] = imm
+
+
+
         elif opcode == 0x63:
             # BEQ / BNE => Instructiune B-Type
 
@@ -291,6 +309,18 @@ class CPU:
                 memAddrValue = (memAddrValue & 0x7fffffff) - (memAddrValue & 0x80000000)
                 if rdKey != 'zero':
                     self.registers[rdKey] = memAddrValue
+            self.registers['pc'] += 4
+        elif self.decoder['opcode'] == 0x23:
+            rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
+            rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'])
+            if self.decoder['funct3'] == 2:
+                #sw
+                memoryAddr = self.registers[rs1Key] + self.decoder['imm']
+                wordValue = self.registers[rs2Key]
+                if wordValue < 0:
+                    wordValue += (1 << 32)
+                self.writeBack(memoryAddr, wordValue)
+
             self.registers['pc'] += 4
         elif self.decoder['opcode'] == 0x63:
             # beq
