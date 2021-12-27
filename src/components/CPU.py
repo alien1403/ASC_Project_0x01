@@ -76,6 +76,9 @@ class CPU:
                 'instruction': 0,
                 'opcode': 0,
                 'imm': 0,
+                'rd': 0,
+                'rs1': 0,
+                'rs2': 0,
                 'SIGINT': False
             }
 
@@ -97,8 +100,11 @@ class CPU:
     # (de exemplu ) sp
     def instructionFetch(self):
         self.decoder['instruction'] = RAM.getInstruction(self.registers['pc'])
-        print("Instructiunea este:{}(decimal) = {}(hexa)".format(self.decoder['instruction'],
-                                                                 hex(self.decoder['instruction'])))
+        print(self.registers)
+        print("Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)".format(self.decoder['instruction'],
+                                                                                       hex(self.decoder['instruction']),
+                                                                                       hex(self.registers[
+                                                                                               'pc'] + 0x80000000)))
 
     '''
         Instructiuni implementate pana acum:
@@ -109,6 +115,12 @@ class CPU:
         - lui
         - auipc
         - lw
+        - bne
+        - beq
+        - nop
+        -slli
+        -beqz
+        
     '''
 
     def instructionDecode(self):
@@ -155,7 +167,30 @@ class CPU:
             imm = (self.decoder['instruction'] & 0xfffff000) >> 0xC
             self.decoder['rd'] = rd
             self.decoder['imm'] = imm
+        elif opcode == 0x63:
+            # BEQ / BNE => Instructiune B-Type
+
+            rs1 = (self.decoder['instruction'] & 0xf8000) >> 0xF
+            rs2 = (self.decoder['instruction'] & 0x1f00000) >> 0x14
+            funct3 = (self.decoder['instruction'] & 0x7000) >> 0xC
+
+            imm_string = binaryStringInstruction[23:19:-1] + binaryStringInstruction[6:0:-1] + binaryStringInstruction[
+                24] + binaryStringInstruction[0]
+            imm_string = imm_string[::-1]
+
+            imm = int(imm_string, base=2)
+            # imm este in complement fata de 2, deci inversam semnul lui imm[11]*2^11
+            imm = (imm & 0x7ff) - (imm & 0x800)
+
+            # TREBUIE SA SARA 2 * offset
+
+            self.decoder['funct3'] = funct3
+            self.decoder['rs1'] = rs1
+            self.decoder['rs2'] = rs2
+            self.decoder['imm'] = imm
+
         elif opcode == 0x73:
+            print("END !!")
             self.decoder['SIGINT'] = True
 
         print("Opcode is {} (decimal) / {} (binary)".format(opcode, bin(opcode)[2:]))
@@ -170,7 +205,13 @@ class CPU:
             if self.decoder['funct3'] == 0:
                 rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
                 rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
-                self.registers[rdKey] = self.registers[rs1Key] + self.decoder['imm']
+
+                # Simulare overflow
+                self.registers[rdKey] = (self.registers[rs1Key] + self.decoder['imm']) & 0xFFFFFFFF
+                # Simulare complement fata de 2, deci inversam semnul lui reg[31]*2^11
+
+                self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
+
                 print("registers[{}] = {} ({} + {}) ADDI".format(rdKey, self.registers[rs1Key] + self.decoder['imm'],
                                                                  self.registers[rs1Key], self.decoder['imm']))
 
@@ -181,10 +222,21 @@ class CPU:
                 self.registers[rdKey] = self.registers[rs1Key] | self.decoder['imm']
                 print("registers[{}] = {} ({} | {}) ORI".format(rdKey, self.registers[rs1Key] | self.decoder['imm'],
                                                                 self.registers[rs1Key], self.decoder['imm']))
+            # slli
+            elif self.decoder['func3'] == 0:
+                '''
+                    In cazul instructiunilor de shift, cei 
+                    mai nesemnificativi 5 biti ai imm-ului reprezinta shamt_i
+                    aka valoarea cu care trebuie shiftat rs1 si mai apoi 
+                    sa fie stocat in rd
+                '''
+                shamt_i = self.decoder['imm'] & 0x1F
+                rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
+                rsKey = self.__getRegisterKeyByIdx(self.decoder['rs1'])
+
+                self.registers[rdKey] = ((self.registers[rsKey] << shamt_i) & 0xFFFFFFFF)
+
             self.registers['pc'] += 4
-
-
-
         elif self.decoder['opcode'] == 0x3:
             # lw
             if self.decoder['funct3'] == 2:
@@ -196,15 +248,46 @@ class CPU:
                 # Valoarea din memorie e reprezentata in complement
                 # fata de 2, deci trebuie sa inversam semnul lui
                 # memAddrValue[31] * 2^31
+
+                # TODO Trebuie sa avem grija cand punem valori in memorie (sa nu fie negative)
+                # pt ca le luam deja pozitive
                 memAddrValue = (memAddrValue & 0x7fffffff) - (memAddrValue & 0x80000000)
                 self.registers[rdKey] = memAddrValue
 
+        elif self.decoder['opcode'] == 0x63:
+            # beq
+            if self.decoder['funct3'] == 0:
+                # Trebuie sa sara la 2*offset daca rs1 == rs2
+                rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
+                rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'])
+                offset = 2 * self.decoder['imm']
+                if self.registers[rs1Key] == self.registers[rs2Key]:
+                    self.registers['pc'] += offset
+                # daca nu e jump, doar trece la urm instr
+                else:
+                    self.registers['pc'] += 4
 
+            # bne
+            elif self.decoder['funct3'] == 1:
+                # Trebuie sa sara la 2*offset daca rs1 != rs2
+                rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
+                rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'])
+                offset = 2 * self.decoder['imm']
+                if self.registers[rs1Key] != self.registers[rs2Key]:
+                    self.registers['pc'] += offset
+                # daca nu e jump, doar trece la urm instr
+                else:
+                    self.registers['pc'] += 4
         # LUI => Instructiune U-Type
         elif self.decoder['opcode'] == 0x37:
             rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
             # Punem in cei mai semnificativi 20 de biti ai lui id imm-ul
             self.registers[rdKey] = self.decoder['imm'] << 0xC
+
+            # Simulare complement fata de 2, deci inversam semnul lui reg[31]*2^11
+
+            self.registers[rdKey] = (self.registers[rdKey] & 0x7fffffff) - (self.registers[rdKey] & 0x80000000)
+
             print("registers[{}] = {} ({} << 12) LUI".format(rdKey, self.decoder['imm'] << 0xC,
                                                              self.decoder['imm']))
 
