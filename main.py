@@ -1,7 +1,7 @@
-from src.components.StorageUnit import StorageUnit
+from src.components.OS import OS
 
-storageUnit = StorageUnit.getInstance()
+os = OS.getInstance()
 
 if __name__ == '__main__':
-    storageUnit.runExecutables()
+    os.runExecutables()
 
