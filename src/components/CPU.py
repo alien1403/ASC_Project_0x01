@@ -135,7 +135,6 @@ class CPU:
             self.instructionDecode()
             self.instructionExecute()
 
-
             # Componentele MEM si WB ale ciclului vor fi initate de EX in cazul in care este necesar
             # Concret, instructionExecute va apela memoryAccess pt a obtine date din memorie / writeBack
             # pentru a scrie date in memorie - daca este cazul
@@ -145,14 +144,13 @@ class CPU:
             if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
                 print(("=" * 10 + "\n") * 4)
 
-
     def instructionFetch(self):
         self.decoder['instruction'] = RAM.getInstruction(self.registers['pc'])
         if self.__DEBUG_MODE and self.decoder['instruction'] != 0:
             print(self.registers)
             instrDebugF = "Instructiunea este:{}(decimal) = {}(hexa), adresa este {}(hexa)"
-            print(instrDebugF.format(self.decoder['instruction'], hex(self.decoder['instruction']), hex(self.registers['pc'] + 0x80000000)))
-
+            print(instrDebugF.format(self.decoder['instruction'], hex(self.decoder['instruction']),
+                                     hex(self.registers['pc'] + 0x80000000)))
 
     def instructionDecode(self):
         binaryStringInstruction = bin(self.decoder['instruction'])[2:].zfill(0x20)
@@ -200,7 +198,7 @@ class CPU:
             self.decoder['rd'] = rd
             self.decoder['imm'] = imm
         elif opcode == 0x23:
-            #Instructiuni S-Type (sw)
+            # Instructiuni S-Type (sw)
             funct3 = (self.decoder['instruction'] & 0x7000) >> 0xC
             rs1 = (self.decoder['instruction'] & 0xf8000) >> 0xF
             rs2 = (self.decoder['instruction'] & 0x1f00000) >> 0x14
@@ -265,7 +263,6 @@ class CPU:
             print("Opcode is {} (decimal) / {} (binary)".format(opcode, bin(opcode)[2:]))
 
     def instructionExecute(self):
-
 
         # opcode == 111 (jal)
         if self.decoder['opcode'] == 0x6F:
@@ -336,7 +333,7 @@ class CPU:
             rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
             rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'])
             if self.decoder['funct3'] == 2:
-                #sw
+                # sw
                 memoryAddr = self.registers[rs1Key] + self.decoder['imm']
                 wordValue = self.registers[rs2Key]
                 if wordValue < 0:
@@ -434,7 +431,7 @@ class CPU:
                     self.registers[rdKey] = self.registers[rs1Key] ^ (self.registers[rs2Key])
             elif self.decoder['funct3'] == 6:
                 if ((self.decoder['rs2'] & 0xFE0) >> 5) == 1:
-                    #rem
+                    # rem
                     rdKey = self.__getRegisterKeyByIdx(self.decoder['rd'])
                     rs1Key = self.__getRegisterKeyByIdx(self.decoder['rs1'])
                     rs2Key = self.__getRegisterKeyByIdx(self.decoder['rs2'] & 0x1F)
@@ -444,7 +441,8 @@ class CPU:
                         elif self.registers[rs1Key] * self.registers[rs2Key] > 0:
                             self.registers[rdKey] = self.registers[rs1Key] % (self.registers[rs2Key])
                         else:
-                            self.registers[rdKey] = self.registers[rs1Key] - math.ceil(self.registers[rs1Key] / self.registers[rs2Key]) * self.registers[rs2Key]
+                            self.registers[rdKey] = self.registers[rs1Key] - math.ceil(
+                                self.registers[rs1Key] / self.registers[rs2Key]) * self.registers[rs2Key]
             self.registers['pc'] += 4
 
         else:
@@ -458,27 +456,3 @@ class CPU:
 
     def __getRegisterKeyByIdx(self, index):
         return list(self.registers.keys())[index]
-
-    '''
-    Deoarece toate instructiunile RV32I au rd-ul in instr[7:11] putem scrie o metoda care sa 
-    il extraga pt a nu duplica prea mult cod
-
-    '''
-
-    def __extractRD(self, instruction):
-        return (instruction & 0xf80) >> 7
-
-    # Similar pt imm rs1 si rs2
-
-    '''
-    Nu e folosit pt instruciuni J-Type care au imm-ul construit diferit
-    '''
-
-    def __extractIMM(self, instruction):
-        return (instruction & 0xfff00000) >> 0x14
-
-    def __extractFunct3(self, instruction):
-        return (instruction & 0x7000) >> 0xC
-
-    def __extractRS1(self, instruction):
-        return (instruction & 0xf8000) >> 0xF
